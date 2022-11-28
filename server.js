@@ -5,41 +5,32 @@ Policy. No part of this assignment has been copied manually or electronically fr
 other source.
 * (including 3rd party web sites) or distributed to other students.
 * 
-* Name: Gunjan Kaur Paul Student ID:156409211  Date: 13/11/2022
+* Name: Gunjan Paul Kaur Student ID:  Date: 13/11/2022
 * 
 * Your app’s URL (from Cyclic Heroku) that I can click to see your application: 
 * https://floating-chamber-26879.herokuapp.com/ 
 * https://git.heroku.com/floating-chamber-26879.git
 * 
 *************************************************************************/ 
-
-var express = require("express");
-var app = express();
 var path = require("path");
-var HTTP_PORT = process.env.PORT || 8080;
-var data = require("./data-service");
-const exphbs = require('express-handlebars');
+var express = require("express");
+const multer = require("multer");
+var app = express();
 
-app.use(function (req, res, next) {
-    let route = req.path.substring(1);
-    app.locals.activeRoute = "/" + ((isNaN(route.split("/")[1])) ?
-        route.replace(/\/(?!.*)/, "") : route.replace(/\/(.*)/, ""));
-    app.locals.viewingCategory = req.query.category;
-    next();
-});
-
-app.set('view engine', '.hbs'
-);
-
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+var exphbs = require("express-handlebars");
+const stripJs = require('strip-js');
 app.engine('.hbs', exphbs.engine({
-    extname: '.hbs',
+    extname: '.hbs'
+    ,
     helpers: {
         navLink: function (url, options) {
+            
             return '<li' +
-                ((url == app.locals.activeRoute) ? ' class="active" ' : '') +
-                '><a href="' + url + '">' + options.fn(this) + '</a></li>';
+                (((url) == app.locals.activeRoute) ? ' class="active" ' : '') +
+                '><a href=" ' + url + ' ">' + options.fn(this) + '</a></li>';
         },
-
         equal: function (lvalue, rvalue, options) {
             if (arguments.length < 3)
                 throw new Error("Handlebars Helper equal needs 2 parameters");
@@ -48,18 +39,19 @@ app.engine('.hbs', exphbs.engine({
             } else {
                 return options.fn(this);
             }
-        },
-
-        safeHTML: function (context) {
-            return stripJs(context);
         }
-
     }
-
 }));
+app.set('view engine', '.hbs');
+app.use(function (req, res, next) {
+    let route = req.baseUrl + req.path;
+    app.locals.activeRoute = (route == "/") ? "/" : route.replace(/\/$/, "");
+    next();
+})
 
-//file handling
-var multer = require("multer");
+
+var HTTP_PORT = process.env.PORT || 8080;
+var data = require("./data-service");
 var fs = require("fs");
 const storage = multer.diskStorage({
     destination: "./public/images/uploaded",
@@ -68,134 +60,124 @@ const storage = multer.diskStorage({
     }
 });
 var upload = multer({ storage: storage });
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-
-// call this function after the http server starts listening for requests
 function onHttpStart() {
     console.log("Express http server listening on: " + HTTP_PORT);
 }
 app.use(express.static('public'));
-// setup a 'route' to listen on the default url path (http://localhost)
 app.get("/", function (req, res) {
-    res.render(path.join(__dirname, "/views/home"));
+    res.redirect("/home");
 });
 
 app.get("/home", function (req, res) {
-    res.redirect("/");
+    res.render("home");
 })
-// setup another route to listen on /about
 app.get("/about", function (req, res) {
-    res.render(path.join(__dirname, "/views/about"));
-
+    res.render("about");
 });
 
 app.get("/employees", function (req, res) {
     if (req.query.status) {
         data.getEmployeeByStatus(req.query.status).then(function (data) {
-            res.render("employees", {employees: data}); 
+            res.render("employees", { employees: data
+             })
         }).catch((err) => {
-            res.render({message: "no results"});
+            res.render({ message: "no results" });
         })
     }
     else if (req.query.department) {
         data.getEmployeesByDepartment(req.query.department).then(function (data) {
-            res.render("employees", {employees: data});
-        }).catch(function (err) {
-            res.render({message: "no results"});
+            res.render("employees", { employees: data })
+        }).catch((err) => {
+            res.render({ message: "no results" });
         })
     }
     else if (req.query.manager) {
         data.getEmployeesByManager(req.query.manager).then(function (data) {
-            res.render("managers", {managers: data});
-        }).catch(function (err) {
-            res.json({ message: err });
+            res.render("employees", { employees: data })
+        }).catch((err) => {
+            res.render({ message: "no results" });
         })
     }
     else {
         data.getAllEmployees().then(function (data) {
-            res.render("employees", {employees: data});
-        }).catch(function (err) {
-            res.render({message: "no results"});
-        });
+            res.render("employees", { employees: data })
+        }).catch((err) => {
+            res.render({ message: "no results" });
+        })
     }
 });
 
 app.get("/employee/:value", function (req, res) {
     data.getEmployeeByNum(req.params.value).then((data) => {
-        console.log("got employee");
-        res.render("employee", {employee: data[0]});
+    //    console.log(data);
+        res.render("employee", {employee:data});
     }).catch((err) => {
-        res.render({message: "no results"});
+        res.render("employee", { message: "no results" });
+    })
+});
+app.post("/employee/update", (req, res) => {
+  //  console.log(req.body);
+    data.updateEmployee(req.body).then(function () {
+        res.redirect("/employees");
+    })
+});
+app.get("/departments", function (req, res) {
+    data.getDepartments().then(function (data) {
+        res.render("departments", { departments: data });
+    }).catch(function (err) {
+        res.render({ message: "no results" });
+    });
+});
+app.get('/departments/add', function (req, res) {
+    res.render("addDepartments");
+});
+app.post('/departments/add', function (req, res) {
+    data.addDepartment(req.body).then(() => { 
+        res.redirect("/departments") }).catch(function (data) {
+        res.render("departments",{message:data})
     })
 });
 
-
-
-
-app.get("/departments", function (req, res) {
-    data.getDepartments().then(function (data) {
-        res.render("departments", {departments: data}) 
-    }).catch(function (err) {
-        es.render({message: "no results"});
-    });
+app.get('/employees/add', (req, res) => {
+    data.getDepartments().then(function (data){
+        res.render("addEmployee",{departments:data});
+    }).catch(function () {
+        res.render("addEmployee",{departments:[]});
+    })
 });
 
-
-app.get('/employees/add', function (req, res) {
-    res.render(path.join(__dirname + "/views/addEmployee"));
+app.get('/images/add', (req, res) => {
+    res.render("addImage");
 });
 
-app.get('/images/add', function (req, res) {
-    res.render(path.join(__dirname + "/views/addImage"));
-});
-
-
-
-app.post("/images/add", upload.single("imageFile"), function (req, res) {
+app.post("/images/add", upload.single("imageFile"), (req, res) => {
     res.redirect("/images");
 });
-app.post('/employees/add', function (req, res) {
+
+app.get("/images", function (req, res) {
+    fs.readdir("./public/images/uploaded", function (err, items) {
+        var message = {
+            "images": items
+        }
+        res.render("images", { data: items });
+    })
+});
+
+app.post('/employees/add', (req, res) => {
     data.addEmployee(req.body).then(() => {
         res.redirect("/employees");
     })
 });
 
-
-app.get("/images", function (req, res) {
-    fs.readdir("./public/images/uploaded", function (err, items) {
-        var send = '{"images":['
-        for (i in items) {
-            if (i < items.length - 1)
-                send += '"' + items[i] + '",'
-            else
-                send += '"' + items[i] + '"'
-        }
-        send += "]}"
-        console.log(send);
-        res.render("images",{data:items});
-    })
-});
-
-app.post("/employee/update", (req, res) => {
-    //  console.log(req.body);
-      data.updateEmployee(req.body).then(function () {
-          res.redirect("/employees");
-      })
-  });
-
-
 app.get('*', function (req, res) {
-    res.send('Page Not Found', 404);
+    res.send('<h1 class=\"error\">Page Not Found</h1>', 404);
 });
 
 
 data.initialize().then(function () {
-    // setup http server to listen on HTTP_PORT
     app.listen(HTTP_PORT, onHttpStart);
 }).catch(function (data) {
+    //when data is not loaded at all
     console.log(data);
 });
 
